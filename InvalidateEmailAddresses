@@ -1,5 +1,5 @@
 List<Contact> contacts = [SELECT Id, Email FROM Contact WHERE Email != null LIMIT 500];
-List<String> excluded = new List<String>{'mint','gbg','gbgplc','@bigmantra.com'};
+List<String> excluded = new List<String>{'mint','gbg','gbgplc','@bigmantra.com','invalid'};
 List<Contact> consToUpdate = new List<Contact>();
 
 for (Contact c : contacts) {
@@ -17,4 +17,7 @@ for (Contact c : contacts) {
     }
 }
 update consToUpdate;
-System.debug('Updated Contacts: ' + consToUpdate);
+
+for (Contact con : consToUpdate){
+    System.debug(con.Name + ': ' + con.Email);
+}
