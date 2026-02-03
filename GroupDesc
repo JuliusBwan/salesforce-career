@@ -10,6 +10,8 @@ public class GroupDesc {
         endDate = end;
     }
 
+    // Build from an original quote line group
+    // If end date is missing, compute it from subscription term (months)
     public static GroupDesc fromGroup(
         SBQQ__QuoteLineGroup__c g,
         Integer subscriptionTerm
@@ -29,39 +31,45 @@ public class GroupDesc {
         );
     }
 
-    // 🔥 IMPORTANT: no fallback group creation anymore
+    // Derive group ONLY if an original group exists
+    // No fallback / date-only group creation
     public static GroupDesc derive(
-        SBQQ__QuoteLine__c rl,
+        SBQQ__QuoteLine__c renewalLine,
         RenewalContext ctx
     ) {
         SBQQ__Subscription__c sub =
-            ctx.subsById.get(rl.SBQQ__RenewedSubscription__c);
+            ctx.subsById.get(renewalLine.SBQQ__RenewedSubscription__c);
 
         if (sub == null || sub.SBQQ__QuoteLine__c == null) {
             return null;
         }
 
-        SBQQ__QuoteLine__c oql =
+        SBQQ__QuoteLine__c originalLine =
             ctx.oqlById.get(sub.SBQQ__QuoteLine__c);
 
-        if (oql == null || oql.SBQQ__Group__c == null) {
+        if (originalLine == null || originalLine.SBQQ__Group__c == null) {
             return null;
         }
 
-        SBQQ__QuoteLineGroup__c og =
-            ctx.origGroupsById.get(oql.SBQQ__Group__c);
+        SBQQ__QuoteLineGroup__c originalGroup =
+            ctx.origGroupsById.get(originalLine.SBQQ__Group__c);
 
-        if (og == null) {
+        if (originalGroup == null) {
             return null;
         }
 
-        return fromGroup(og, sub.Subscription_Term__c);
+        return fromGroup(
+            originalGroup,
+            originalLine.Subscription_Term__c
+        );
     }
 
+    // Used to dedupe groups
     public String fingerprint() {
         return String.valueOf(startDate) + '|' + String.valueOf(endDate);
     }
 
+    // <Original Group Name> : Jan 2025 – Dec 2025
     public String defaultName() {
         String startLabel = startDate.format('MMM yyyy');
         String endLabel   = endDate != null ? endDate.format('MMM yyyy') : 'Open';
