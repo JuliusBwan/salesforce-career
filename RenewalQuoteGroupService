@@ -1,0 +1,108 @@
+public with sharing class RenewalQuoteGroupService {
+
+    public static void run(Set<Id> quoteIds) {
+        if (quoteIds == null || quoteIds.isEmpty()) return;
+
+        List<SBQQ__Quote__c> quotes =
+            RenewalQuoteSelector.selectTargetQuotes(quoteIds);
+        if (quotes.isEmpty()) return;
+
+        Set<Id> qIds = new Set<Id>();
+        for (SBQQ__Quote__c q : quotes) qIds.add(q.Id);
+
+        List<SBQQ__QuoteLine__c> renewalLines =
+            RenewalQuoteSelector.selectRenewalLines(qIds);
+        if (renewalLines.isEmpty()) return;
+
+        RenewalContext ctx = RenewalContext.build(renewalLines);
+        if (ctx.requiredGroups.isEmpty()) return;
+
+        Map<Id, Map<String, Id>> existing =
+            RenewalQuoteSelector.selectExistingGroups(ctx.requiredGroups.keySet());
+
+        createMissingGroups(ctx.requiredGroups, existing);
+
+        // reload to capture inserted groups
+        existing =
+            RenewalQuoteSelector.selectExistingGroups(ctx.requiredGroups.keySet());
+
+        assignLinesToGroups(renewalLines, ctx, existing);
+        markQuotesProcessed(quotes);
+    }
+
+    // ------------------------
+    // Group Creation
+    // ------------------------
+    private static void createMissingGroups(
+        Map<Id, Map<String, GroupDesc>> required,
+        Map<Id, Map<String, Id>> existing
+    ) {
+        List<SBQQ__QuoteLineGroup__c> inserts = new List<SBQQ__QuoteLineGroup__c>();
+
+        for (Id qId : required.keySet()) {
+            Map<String, Id> exist =
+                MapUtil.getOrCreate(existing, qId);
+
+            for (GroupDesc d : required.get(qId).values()) {
+                if (!exist.containsKey(d.fingerprint())) {
+                    inserts.add(new SBQQ__QuoteLineGroup__c(
+                        SBQQ__Quote__c   = qId,
+                        Name             = d.defaultName(),
+                        SBQQ__StartDate__c = d.startDate,
+                        SBQQ__EndDate__c   = d.endDate
+                    ));
+                }
+            }
+        }
+
+        if (!inserts.isEmpty()) {
+            insert inserts;
+        }
+    }
+
+    // ------------------------
+    // Line Assignment
+    // ------------------------
+    private static void assignLinesToGroups(
+        List<SBQQ__QuoteLine__c> lines,
+        RenewalContext ctx,
+        Map<Id, Map<String, Id>> existing
+    ) {
+        List<SBQQ__QuoteLine__c> updates = new List<SBQQ__QuoteLine__c>();
+
+        
+        for (SBQQ__QuoteLine__c rl : lines) {
+          GroupDesc d = GroupDesc.derive(rl, ctx);
+      
+          if (d == null) {
+              continue; // leave ungrouped
+          }
+      
+          Id target =
+              existing.get(rl.SBQQ__Quote__c).get(d.fingerprint());
+      
+          if (target != null && rl.SBQQ__Group__c != target) {
+              updates.add(new SBQQ__QuoteLine__c(
+                  Id = rl.Id,
+                  SBQQ__Group__c = target
+              ));
+          }
+      }
+
+
+        if (!updates.isEmpty()) {
+            update updates;
+        }
+    }
+
+    private static void markQuotesProcessed(List<SBQQ__Quote__c> quotes) {
+        List<SBQQ__Quote__c> updates = new List<SBQQ__Quote__c>();
+        for (SBQQ__Quote__c q : quotes) {
+            updates.add(new SBQQ__Quote__c(
+                Id = q.Id,
+                Rebuilt_Groups__c = true
+            ));
+        }
+        update updates;
+    }
+}
