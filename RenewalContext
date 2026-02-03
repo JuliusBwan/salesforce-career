@@ -1,71 +1,57 @@
+/*
+ * Load required data once, store it in maps and make lookups fast
+*/
+
 public class RenewalContext {
 
-    public Map<Id, SBQQ__Subscription__c> subsById;
-    public Map<Id, SBQQ__QuoteLine__c> oqlById;
-    public Map<Id, SBQQ__QuoteLineGroup__c> origGroupsById;
-    public Map<Id, Map<String, GroupDesc>> requiredGroups;
+    public Map<Id, SBQQ__Subscription__c> subsById; //given a renewal quote, we can easily get its subscription
+    public Map<Id, SBQQ__QuoteLine__c> oqlById; //subscriptions point to original quote lines. Easily inspect original group & subscription term
+    public Map<Id, SBQQ__QuoteLineGroup__c> origGroupsById; //read group name, start date, end date
+    public Map<Id, Map<String, GroupDesc>> requiredGroups; //Track which groups must exist per quote, prevent duplicates
 
-    private RenewalContext() {}
-
-    public static RenewalContext build(List<SBQQ__QuoteLine__c> renewalLines) {
-        RenewalContext ctx = new RenewalContext();
+    private RenewalContext() {} //prevent accidental new RenewalContext() calls, //must use build() at all times
+			
+    public static RenewalContext build(List<SBQQ__QuoteLine__c> renewalLines) { 
+        RenewalContext ctx = new RenewalContext();	/*create the context object and initialize maps*/
         ctx.requiredGroups = new Map<Id, Map<String, GroupDesc>>();
 
-        // Subscriptions
         Set<Id> subIds = new Set<Id>();
-        for (SBQQ__QuoteLine__c rl : renewalLines) {
-            subIds.add(rl.SBQQ__RenewedSubscription__c);
-        }
+        /*collect all renewed subs related to renewal quote lines*/
+        for (SBQQ__QuoteLine__c rl : renewalLines) subIds.add(rl.SBQQ__RenewedSubscription__c); 
+		
+        /*collect and store renewed sub records in a map for easy lookup*/
+        ctx.subsById = new Map<Id, SBQQ__Subscription__c>([SELECT Id, SBQQ__QuoteLine__c FROM SBQQ__Subscription__c WHERE Id IN :subIds]);
 
-        ctx.subsById = new Map<Id, SBQQ__Subscription__c>([
-            SELECT Id, SBQQ__QuoteLine__c
-            FROM SBQQ__Subscription__c
-            WHERE Id IN :subIds
-        ]);
-
-        // Original quote lines
         Set<Id> oqlIds = new Set<Id>();
-        for (SBQQ__Subscription__c s : ctx.subsById.values()) {
-            if (s.SBQQ__QuoteLine__c != null) {
-                oqlIds.add(s.SBQQ__QuoteLine__c);
-            }
+        /*collect all original quote line Ids using renewed subs and store into a set*/
+        for (SBQQ__Subscription__c s : ctx.subsById.values()) { 
+            if (s.SBQQ__QuoteLine__c != null) oqlIds.add(s.SBQQ__QuoteLine__c);
         }
-
-        ctx.oqlById = oqlIds.isEmpty()
-            ? new Map<Id, SBQQ__QuoteLine__c>()
-            : new Map<Id, SBQQ__QuoteLine__c>([
-                SELECT Id,
-                       SBQQ__Group__c,
-                       Subscription_Term__c
-                FROM SBQQ__QuoteLine__c
-                WHERE Id IN :oqlIds
+		
+        /*collect and store original quote line records (include sub term, group) in a map*/
+        ctx.oqlById = oqlIds.isEmpty() ? new Map<Id, SBQQ__QuoteLine__c>() : new Map<Id, SBQQ__QuoteLine__c>([
+                SELECT Id, SBQQ__Group__c, SBQQ__SubscriptionTerm__c FROM SBQQ__QuoteLine__c WHERE Id IN :oqlIds
             ]);
 
-        // Original groups
+        
         Set<Id> groupIds = new Set<Id>();
+        /* collect original quote line group Ids from original quote line records map */
         for (SBQQ__QuoteLine__c oql : ctx.oqlById.values()) {
             if (oql.SBQQ__Group__c != null) {
                 groupIds.add(oql.SBQQ__Group__c);
             }
         }
+		/*collect and store original quote line groups infor into a map*/
+        ctx.origGroupsById = groupIds.isEmpty() ? new Map<Id, SBQQ__QuoteLineGroup__c>()
+            : new Map<Id, SBQQ__QuoteLineGroup__c>([SELECT Id, Name, SBQQ__StartDate__c, SBQQ__EndDate__c FROM SBQQ__QuoteLineGroup__c
+                WHERE Id IN :groupIds]);
 
-        ctx.origGroupsById = groupIds.isEmpty()
-            ? new Map<Id, SBQQ__QuoteLineGroup__c>()
-            : new Map<Id, SBQQ__QuoteLineGroup__c>([
-                SELECT Id,
-                       Name,
-                       SBQQ__StartDate__c,
-                       SBQQ__EndDate__c
-                FROM SBQQ__QuoteLineGroup__c
-                WHERE Id IN :groupIds
-            ]);
-
-        // Required groups (ONLY when original group exists)
+        /*loop through renewal quote lines again*/
         for (SBQQ__QuoteLine__c rl : renewalLines) {
-            GroupDesc d = GroupDesc.derive(rl, ctx);
+            GroupDesc d = GroupDesc.derive(rl, ctx); /*does this renewal quote line map to an original quote line group? */
+            /*if an original quote line group exists, store it under its quote and use fingerprint() to avoid dupes*/
             if (d != null) {
-                MapUtil.getOrCreate(ctx.requiredGroups, rl.SBQQ__Quote__c)
-                       .put(d.fingerprint(), d);
+                MapUtil.getOrCreate(ctx.requiredGroups, rl.SBQQ__Quote__c).put(d.fingerprint(), d); 
             }
         }
 
