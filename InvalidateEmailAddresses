@@ -28,3 +28,58 @@ for (Integer i = 0; i < results.size(); i++) {
     }
 }
 
+
+############################################################## Batch leads
+
+global class MarkInvalidLeadEmailsBatch implements Database.Batchable<SObject> {
+
+    global Database.QueryLocator start(Database.BatchableContext bc) {
+        // Query all Leads with an Email
+        return Database.getQueryLocator(
+            [SELECT Id, Email FROM Lead WHERE Email != null]
+        );
+    }
+
+    global void execute(Database.BatchableContext bc, List<Lead> scope) {
+        List<String> excluded = new List<String>{'mint','gbg','gbgplc','@bigmantra.com'};
+        List<Lead> toUpdate = new List<Lead>();
+
+        for (Lead l : scope) {
+            Boolean skip = false;
+
+            // Check if email contains any excluded pattern
+            for (String p : excluded) {
+                if (l.Email != null && l.Email.toLowerCase().contains(p)) {
+                    skip = true;
+                    break;
+                }
+            }
+
+            // Only update Leads that don't match excluded patterns
+            if (!skip) {
+                l.Email += '.invalid'; // or use a custom field if email validation blocks it
+                toUpdate.add(l);
+            }
+        }
+
+        // Bulk update the filtered Leads
+        if (!toUpdate.isEmpty()) {
+            try {
+                Database.update(toUpdate, false); // allOrNone=false so other records still update
+            } catch (DmlException e) {
+                System.debug('DML error in batch: ' + e.getMessage());
+            }
+        }
+    }
+
+    global void finish(Database.BatchableContext bc) {
+        System.debug('Finished marking invalid Lead emails.');
+    }
+}
+
+
+#####
+// Run with a batch size of 200 to stay under CPU limits
+Database.executeBatch(new MarkInvalidLeadEmailsBatch(), 200);
+
+
