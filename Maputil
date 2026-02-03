@@ -1,0 +1,22 @@
+public class MapUtil {
+
+    public static Map<String, GroupDesc> getOrCreate(
+        Map<Id, Map<String, GroupDesc>> map,
+        Id key
+    ) {
+        if (!map.containsKey(key)) {
+            map.put(key, new Map<String, GroupDesc>());
+        }
+        return map.get(key);
+    }
+
+    public static Map<String, Id> getOrCreate(
+        Map<Id, Map<String, Id>> map,
+        Id key
+    ) {
+        if (!map.containsKey(key)) {
+            map.put(key, new Map<String, Id>());
+        }
+        return map.get(key);
+    }
+}
