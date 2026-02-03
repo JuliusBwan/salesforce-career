@@ -16,8 +16,15 @@ for (Contact c : contacts) {
         consToUpdate.add(c);
     }
 }
-update consToUpdate;
+Database.SaveResult[] results = Database.update(consToUpdate, false);
 
-for (Contact con : consToUpdate){
-    System.debug(con.Name + ': ' + con.Email);
+for (Integer i = 0; i < results.size(); i++) {
+    if (!results[i].isSuccess()) {
+        System.debug('Failed record ID: ' + consToUpdate[i].Id);
+        for (Database.Error err : results[i].getErrors()) {
+            System.debug('Error: ' + err.getMessage());
+            System.debug('Status code: ' + err.getStatusCode());
+        }
+    }
 }
+
