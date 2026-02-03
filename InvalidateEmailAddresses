@@ -1,7 +1,16 @@
-List<Contact> toInvalidate = [SELECT Id, Email FROM Contact WHERE Email != null LIMIT 200];
+List<Contact> toInvalidate = [
+    SELECT Id, Email
+    FROM Contact
+    WHERE Email != null
+    AND Email NOT LIKE '%mint%'
+    AND Email NOT LIKE '%gbg%'
+    AND Email NOT LIKE '%gbgplc%'
+    AND Email NOT LIKE '%@bigmantra.com%'
+    LIMIT 200
+];
+
 
 for (Contact c : toInvalidate) {
-    /* Append ".invalid" so SFDC marks it undeliverable */
     c.Email = c.Email + '.invalid';
 }
 
