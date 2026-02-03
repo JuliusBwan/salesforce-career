@@ -17,4 +17,4 @@ for (Contact c : contacts) {
     }
 }
 update consToUpdate;
-System.debug('Updated Contacts: ' + contacts);
+System.debug('Updated Contacts: ' + consToUpdate);
