@@ -15,14 +15,16 @@ public with sharing class RenewalQuoteGroupService {
         if (renewalLines.isEmpty()) return;
 
         RenewalContext ctx = RenewalContext.build(renewalLines);
-        if (ctx.requiredGroups.isEmpty()) return;
+        if (ctx.requiredGroups.isEmpty()) {
+            markQuotesProcessed(quotes);
+            return;
+        }
 
         Map<Id, Map<String, Id>> existing =
             RenewalQuoteSelector.selectExistingGroups(ctx.requiredGroups.keySet());
 
         createMissingGroups(ctx.requiredGroups, existing);
 
-        // reload to capture inserted groups
         existing =
             RenewalQuoteSelector.selectExistingGroups(ctx.requiredGroups.keySet());
 
@@ -30,9 +32,6 @@ public with sharing class RenewalQuoteGroupService {
         markQuotesProcessed(quotes);
     }
 
-    // ------------------------
-    // Group Creation
-    // ------------------------
     private static void createMissingGroups(
         Map<Id, Map<String, GroupDesc>> required,
         Map<Id, Map<String, Id>> existing
@@ -40,14 +39,13 @@ public with sharing class RenewalQuoteGroupService {
         List<SBQQ__QuoteLineGroup__c> inserts = new List<SBQQ__QuoteLineGroup__c>();
 
         for (Id qId : required.keySet()) {
-            Map<String, Id> exist =
-                MapUtil.getOrCreate(existing, qId);
+            Map<String, Id> exist = MapUtil.getOrCreate(existing, qId);
 
             for (GroupDesc d : required.get(qId).values()) {
                 if (!exist.containsKey(d.fingerprint())) {
                     inserts.add(new SBQQ__QuoteLineGroup__c(
-                        SBQQ__Quote__c   = qId,
-                        Name             = d.defaultName(),
+                        SBQQ__Quote__c     = qId,
+                        Name               = d.defaultName(),
                         SBQQ__StartDate__c = d.startDate,
                         SBQQ__EndDate__c   = d.endDate
                     ));
@@ -60,9 +58,6 @@ public with sharing class RenewalQuoteGroupService {
         }
     }
 
-    // ------------------------
-    // Line Assignment
-    // ------------------------
     private static void assignLinesToGroups(
         List<SBQQ__QuoteLine__c> lines,
         RenewalContext ctx,
@@ -70,25 +65,20 @@ public with sharing class RenewalQuoteGroupService {
     ) {
         List<SBQQ__QuoteLine__c> updates = new List<SBQQ__QuoteLine__c>();
 
-        
         for (SBQQ__QuoteLine__c rl : lines) {
-          GroupDesc d = GroupDesc.derive(rl, ctx);
-      
-          if (d == null) {
-              continue; // leave ungrouped
-          }
-      
-          Id target =
-              existing.get(rl.SBQQ__Quote__c).get(d.fingerprint());
-      
-          if (target != null && rl.SBQQ__Group__c != target) {
-              updates.add(new SBQQ__QuoteLine__c(
-                  Id = rl.Id,
-                  SBQQ__Group__c = target
-              ));
-          }
-      }
+            GroupDesc d = GroupDesc.derive(rl, ctx);
+            if (d == null) continue;
 
+            Id target =
+                existing.get(rl.SBQQ__Quote__c).get(d.fingerprint());
+
+            if (target != null && rl.SBQQ__Group__c != target) {
+                updates.add(new SBQQ__QuoteLine__c(
+                    Id = rl.Id,
+                    SBQQ__Group__c = target
+                ));
+            }
+        }
 
         if (!updates.isEmpty()) {
             update updates;
