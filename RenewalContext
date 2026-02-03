@@ -1,0 +1,63 @@
+public class RenewalContext {
+
+    public Map<Id, SBQQ__Subscription__c> subsById;
+    public Map<Id, SBQQ__QuoteLine__c> oqlById;
+    public Map<Id, SBQQ__QuoteLineGroup__c> origGroupsById;
+    public Map<Id, Map<String, GroupDesc>> requiredGroups;
+
+    private RenewalContext() {}
+
+    public static RenewalContext build(List<SBQQ__QuoteLine__c> lines) {
+        RenewalContext ctx = new RenewalContext();
+        ctx.requiredGroups = new Map<Id, Map<String, GroupDesc>>();
+
+        Set<Id> subIds = new Set<Id>();
+        for (SBQQ__QuoteLine__c rl : lines) {
+            subIds.add(rl.SBQQ__RenewedSubscription__c);
+        }
+
+        ctx.subsById = new Map<Id, SBQQ__Subscription__c>([
+            SELECT Id, SBQQ__QuoteLine__c,
+            Subscription_Term__c
+            FROM SBQQ__Subscription__c
+            WHERE Id IN :subIds
+        ]);
+
+        Set<Id> oqlIds = new Set<Id>();
+        for (SBQQ__Subscription__c s : ctx.subsById.values()) {
+            if (s.SBQQ__QuoteLine__c != null) oqlIds.add(s.SBQQ__QuoteLine__c);
+        }
+
+        ctx.oqlById = oqlIds.isEmpty()
+            ? new Map<Id, SBQQ__QuoteLine__c>()
+            : new Map<Id, SBQQ__QuoteLine__c>([
+                SELECT Id, SBQQ__Group__c
+                FROM SBQQ__QuoteLine__c
+                WHERE Id IN :oqlIds
+            ]);
+
+        Set<Id> grpIds = new Set<Id>();
+        for (SBQQ__QuoteLine__c oql : ctx.oqlById.values()) {
+            if (oql.SBQQ__Group__c != null) grpIds.add(oql.SBQQ__Group__c);
+        }
+
+        ctx.origGroupsById = grpIds.isEmpty()
+            ? new Map<Id, SBQQ__QuoteLineGroup__c>()
+            : new Map<Id, SBQQ__QuoteLineGroup__c>([
+                SELECT Id, Name, SBQQ__StartDate__c, SBQQ__EndDate__c
+                FROM SBQQ__QuoteLineGroup__c
+                WHERE Id IN :grpIds
+            ]);
+
+        for (SBQQ__QuoteLine__c rl : lines) {
+            GroupDesc d = GroupDesc.derive(rl, ctx);
+
+            if (d != null){
+                MapUtil.getOrCreate(ctx.requiredGroups, rl.SBQQ__Quote__c)
+                   .put(d.fingerprint(), d);
+            }
+        }
+
+        return ctx;
+    }
+}
