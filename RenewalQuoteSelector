@@ -1,0 +1,29 @@
+public with sharing class RenewalQuoteSelector {
+    
+    private static final String renewal = 'Renewal';
+    
+	/*collect and store renewal quotes whose rebuilt groups = false from all quote Ids*/
+    public static List<SBQQ__Quote__c> selectTargetQuotes(Set<Id> quoteIds) {
+        return [
+            SELECT Id, SBQQ__Type__c, Rebuilt_Groups__c FROM SBQQ__Quote__c WHERE Id IN :quoteIds AND SBQQ__Type__c = :renewal
+            AND (Rebuilt_Groups__c = false OR Rebuilt_Groups__c = null)];
+    }
+	/*collect and store renewal quote lines record infor from all quote Ids who have related subs*/
+    public static List<SBQQ__QuoteLine__c> selectRenewalLines(Set<Id> quoteIds) {
+        return [
+            SELECT Id, SBQQ__Quote__c, SBQQ__RenewedSubscription__c, SBQQ__Group__c FROM SBQQ__QuoteLine__c WHERE SBQQ__Quote__c IN :quoteIds
+            AND SBQQ__RenewedSubscription__c != null];
+    }
+	/*collect and store quote line group record info from renewal quote Ids*/
+    public static Map<Id, Map<String, Id>> selectExistingGroups(Set<Id> quoteIds) {
+        Map<Id, Map<String, Id>> result = new Map<Id, Map<String, Id>>();
+
+        for (SBQQ__QuoteLineGroup__c g : [
+            SELECT Id, Name, SBQQ__Quote__c, SBQQ__SubscriptionTerm__c, SBQQ__StartDate__c, SBQQ__EndDate__c FROM SBQQ__QuoteLineGroup__c WHERE SBQQ__Quote__c IN :quoteIds]) {
+            GroupDesc d = GroupDesc.fromGroup(g, Integer.valueOf(g.SBQQ__SubscriptionTerm__c));
+            MapUtil.getOrCreate(result, g.SBQQ__Quote__c).put(d.fingerprint(), g.Id);
+        }
+
+        return result;
+    }
+}
