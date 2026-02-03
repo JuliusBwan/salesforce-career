@@ -1,0 +1,9 @@
+List<Contact> toInvalidate = [SELECT Id, Email FROM Contact WHERE Email != null LIMIT 200];
+
+for (Contact c : toInvalidate) {
+    /* Append ".invalid" so SFDC marks it undeliverable */
+    c.Email = c.Email + '.invalid';
+}
+
+update toInvalidate;
+System.debug('Updated ' + toInvalidate.size() + ' contact emails.');
