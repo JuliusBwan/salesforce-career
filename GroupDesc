@@ -1,79 +1,63 @@
-public class GroupDesc {
+/*
+ * Describe what a renewal quote line group should look like (name, dates)
+ * Doesn't touch the database
+ * formats values
+*/
 
+public class GroupDesc {
+	/* Immutable fields that don't change */
     public final String originalName;
     public final Date startDate;
     public final Date endDate;
-
-    private GroupDesc(String name, Date start, Date end) {
+	
+    /*constructor*/
+    private GroupDesc(String name, Date s, Date e) {
         originalName = name;
-        startDate = start;
-        endDate = end;
+        startDate = s;
+        endDate = e;
+    }
+    /* helper to format new group name*/
+    public static String formatMonthYear(Date d){
+        if (d == null) return '';
+        Datetime dt = Datetime.newInstance(d, Time.newInstance(0,0,0,0));
+        return dt.format('MM yyyy');
     }
 
-    // Build from an original quote line group
-    // If end date is missing, compute it from subscription term (months)
-    public static GroupDesc fromGroup(
-        SBQQ__QuoteLineGroup__c g,
-        Integer subscriptionTerm
-    ) {
-        Date computedEnd = g.SBQQ__EndDate__c;
-
-        if (computedEnd == null &&
-            subscriptionTerm != null &&
-            g.SBQQ__StartDate__c != null) {
+    /*Build a GroupDesc from an original quote line group */
+    public static GroupDesc fromGroup(SBQQ__QuoteLineGroup__c g, Integer subscriptionTerm) {
+        Date computedEnd = g.SBQQ__EndDate__c; /* use the real enddate */
+		
+        /* if the real enddate is missing, compute it from the subscription term and start date */
+        if (computedEnd == null && subscriptionTerm != null && g.SBQQ__StartDate__c != null) {
             computedEnd = g.SBQQ__StartDate__c.addMonths(subscriptionTerm);
         }
+		/* create the GroupDesc object */
+        return new GroupDesc(g.Name, g.SBQQ__StartDate__c, computedEnd);
+    }
+    
+	/* Derive group from renewal line */
+    public static GroupDesc derive(SBQQ__QuoteLine__c renewalLine, RenewalContext ctx) { /*Does this renewal line belong to a group*/
+        SBQQ__Subscription__c sub = ctx.subsById.get(renewalLine.SBQQ__RenewedSubscription__c);
+        if (sub == null || sub.SBQQ__QuoteLine__c == null) return null; //no original group, no recreated group
 
-        return new GroupDesc(
-            g.Name,
-            g.SBQQ__StartDate__c,
-            computedEnd
-        );
+        SBQQ__QuoteLine__c originalLine = ctx.oqlById.get(sub.SBQQ__QuoteLine__c);
+        if (originalLine == null || originalLine.SBQQ__Group__c == null) return null; //no original group, no recreated group
+
+        SBQQ__QuoteLineGroup__c originalGroup = ctx.origGroupsById.get(originalLine.SBQQ__Group__c);
+        if (originalGroup == null) return null; //no original group, no recreated group
+		
+        /*create GroupDesc*/
+        return fromGroup(originalGroup, Integer.valueOf(originalLine.SBQQ__SubscriptionTerm__c));
     }
 
-    // Derive group ONLY if an original group exists
-    // No fallback / date-only group creation
-    public static GroupDesc derive(
-        SBQQ__QuoteLine__c renewalLine,
-        RenewalContext ctx
-    ) {
-        SBQQ__Subscription__c sub =
-            ctx.subsById.get(renewalLine.SBQQ__RenewedSubscription__c);
-
-        if (sub == null || sub.SBQQ__QuoteLine__c == null) {
-            return null;
-        }
-
-        SBQQ__QuoteLine__c originalLine =
-            ctx.oqlById.get(sub.SBQQ__QuoteLine__c);
-
-        if (originalLine == null || originalLine.SBQQ__Group__c == null) {
-            return null;
-        }
-
-        SBQQ__QuoteLineGroup__c originalGroup =
-            ctx.origGroupsById.get(originalLine.SBQQ__Group__c);
-
-        if (originalGroup == null) {
-            return null;
-        }
-
-        return fromGroup(
-            originalGroup,
-            originalLine.Subscription_Term__c
-        );
-    }
-
-    // Used to dedupe groups
+    /* Used to prevent duplicate group creation */
     public String fingerprint() {
         return String.valueOf(startDate) + '|' + String.valueOf(endDate);
     }
+    
 
     // <Original Group Name> : Jan 2025 – Dec 2025
     public String defaultName() {
-        String startLabel = startDate.format('MMM yyyy');
-        String endLabel   = endDate != null ? endDate.format('MMM yyyy') : 'Open';
-
-        return originalName + ' : ' + startLabel + ' – ' + endLabel;
+        return originalName + ' : ' + formatMonthYear(startDate) + ' – ' + endDate != null ? formatMonthYear(endDate) : 'Open';
     }
 }
