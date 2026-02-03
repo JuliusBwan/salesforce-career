@@ -9,12 +9,12 @@ for (Contact c : contacts) {
         if (c.Email.toLowerCase().contains(p)) { 
         	skip = true; 
         	break; 
-    	}
-        if (!skip) {
-            c.Email += '.invalid';
-            consToUpdate.add(c);
         }
-	}
+    }
+    if (!skip) {
+        c.Email += '.invalid';
+        consToUpdate.add(c);
+    }
 }
 update consToUpdate;
 System.debug('Updated Contacts: ' + contacts);
