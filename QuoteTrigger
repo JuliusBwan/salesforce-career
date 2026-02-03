@@ -1,0 +1,18 @@
+trigger SBQQ_Quote_Trigger on SBQQ__Quote__c (after insert, after update) {
+
+    if (RenewalQuoteTriggerGuard.hasRun) return;
+    RenewalQuoteTriggerGuard.hasRun = true;
+
+    Set<Id> renewalQuoteIds = new Set<Id>();
+
+    for (SBQQ__Quote__c q : Trigger.new) {
+        if (q.SBQQ__Type__c == 'Renewal'
+            && (Trigger.isInsert || q.Rebuilt_Groups__c == false)) {
+            renewalQuoteIds.add(q.Id);
+        }
+    }
+
+    if (!renewalQuoteIds.isEmpty()) {
+        RenewalQuoteGroupService.run(renewalQuoteIds);
+    }
+}
