@@ -7,54 +7,65 @@ public class RenewalContext {
 
     private RenewalContext() {}
 
-    public static RenewalContext build(List<SBQQ__QuoteLine__c> lines) {
+    public static RenewalContext build(List<SBQQ__QuoteLine__c> renewalLines) {
         RenewalContext ctx = new RenewalContext();
         ctx.requiredGroups = new Map<Id, Map<String, GroupDesc>>();
 
+        // Subscriptions
         Set<Id> subIds = new Set<Id>();
-        for (SBQQ__QuoteLine__c rl : lines) {
+        for (SBQQ__QuoteLine__c rl : renewalLines) {
             subIds.add(rl.SBQQ__RenewedSubscription__c);
         }
 
         ctx.subsById = new Map<Id, SBQQ__Subscription__c>([
-            SELECT Id, SBQQ__QuoteLine__c,
-            Subscription_Term__c
+            SELECT Id, SBQQ__QuoteLine__c
             FROM SBQQ__Subscription__c
             WHERE Id IN :subIds
         ]);
 
+        // Original quote lines
         Set<Id> oqlIds = new Set<Id>();
         for (SBQQ__Subscription__c s : ctx.subsById.values()) {
-            if (s.SBQQ__QuoteLine__c != null) oqlIds.add(s.SBQQ__QuoteLine__c);
+            if (s.SBQQ__QuoteLine__c != null) {
+                oqlIds.add(s.SBQQ__QuoteLine__c);
+            }
         }
 
         ctx.oqlById = oqlIds.isEmpty()
             ? new Map<Id, SBQQ__QuoteLine__c>()
             : new Map<Id, SBQQ__QuoteLine__c>([
-                SELECT Id, SBQQ__Group__c
+                SELECT Id,
+                       SBQQ__Group__c,
+                       Subscription_Term__c
                 FROM SBQQ__QuoteLine__c
                 WHERE Id IN :oqlIds
             ]);
 
-        Set<Id> grpIds = new Set<Id>();
+        // Original groups
+        Set<Id> groupIds = new Set<Id>();
         for (SBQQ__QuoteLine__c oql : ctx.oqlById.values()) {
-            if (oql.SBQQ__Group__c != null) grpIds.add(oql.SBQQ__Group__c);
+            if (oql.SBQQ__Group__c != null) {
+                groupIds.add(oql.SBQQ__Group__c);
+            }
         }
 
-        ctx.origGroupsById = grpIds.isEmpty()
+        ctx.origGroupsById = groupIds.isEmpty()
             ? new Map<Id, SBQQ__QuoteLineGroup__c>()
             : new Map<Id, SBQQ__QuoteLineGroup__c>([
-                SELECT Id, Name, SBQQ__StartDate__c, SBQQ__EndDate__c
+                SELECT Id,
+                       Name,
+                       SBQQ__StartDate__c,
+                       SBQQ__EndDate__c
                 FROM SBQQ__QuoteLineGroup__c
-                WHERE Id IN :grpIds
+                WHERE Id IN :groupIds
             ]);
 
-        for (SBQQ__QuoteLine__c rl : lines) {
+        // Required groups (ONLY when original group exists)
+        for (SBQQ__QuoteLine__c rl : renewalLines) {
             GroupDesc d = GroupDesc.derive(rl, ctx);
-
-            if (d != null){
+            if (d != null) {
                 MapUtil.getOrCreate(ctx.requiredGroups, rl.SBQQ__Quote__c)
-                   .put(d.fingerprint(), d);
+                       .put(d.fingerprint(), d);
             }
         }
 
