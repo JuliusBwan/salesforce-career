@@ -1,0 +1,71 @@
+public class GroupDesc {
+
+    public final String originalName;
+    public final Date startDate;
+    public final Date endDate;
+
+    private GroupDesc(String name, Date start, Date end) {
+        originalName = name;
+        startDate = start;
+        endDate = end;
+    }
+
+    public static GroupDesc fromGroup(
+        SBQQ__QuoteLineGroup__c g,
+        Integer subscriptionTerm
+    ) {
+        Date computedEnd = g.SBQQ__EndDate__c;
+
+        if (computedEnd == null &&
+            subscriptionTerm != null &&
+            g.SBQQ__StartDate__c != null) {
+            computedEnd = g.SBQQ__StartDate__c.addMonths(subscriptionTerm);
+        }
+
+        return new GroupDesc(
+            g.Name,
+            g.SBQQ__StartDate__c,
+            computedEnd
+        );
+    }
+
+    // 🔥 IMPORTANT: no fallback group creation anymore
+    public static GroupDesc derive(
+        SBQQ__QuoteLine__c rl,
+        RenewalContext ctx
+    ) {
+        SBQQ__Subscription__c sub =
+            ctx.subsById.get(rl.SBQQ__RenewedSubscription__c);
+
+        if (sub == null || sub.SBQQ__QuoteLine__c == null) {
+            return null;
+        }
+
+        SBQQ__QuoteLine__c oql =
+            ctx.oqlById.get(sub.SBQQ__QuoteLine__c);
+
+        if (oql == null || oql.SBQQ__Group__c == null) {
+            return null;
+        }
+
+        SBQQ__QuoteLineGroup__c og =
+            ctx.origGroupsById.get(oql.SBQQ__Group__c);
+
+        if (og == null) {
+            return null;
+        }
+
+        return fromGroup(og, sub.Subscription_Term__c);
+    }
+
+    public String fingerprint() {
+        return String.valueOf(startDate) + '|' + String.valueOf(endDate);
+    }
+
+    public String defaultName() {
+        String startLabel = startDate.format('MMM yyyy');
+        String endLabel   = endDate != null ? endDate.format('MMM yyyy') : 'Open';
+
+        return originalName + ' : ' + startLabel + ' – ' + endLabel;
+    }
+}
