@@ -1,0 +1,43 @@
+public with sharing class RenewalQuoteSelector {
+
+    public static List<SBQQ__Quote__c> selectTargetQuotes(Set<Id> quoteIds) {
+        return [
+            SELECT Id, Rebuilt_Groups__c
+            FROM SBQQ__Quote__c
+            WHERE Id IN :quoteIds
+            AND (Rebuilt_Groups__c = false OR Rebuilt_Groups__c = null)
+        ];
+    }
+
+    public static List<SBQQ__QuoteLine__c> selectRenewalLines(Set<Id> quoteIds) {
+        return [
+            SELECT Id,
+                   SBQQ__Quote__c,
+                   SBQQ__RenewedSubscription__c,
+                   SBQQ__Group__c
+            FROM SBQQ__QuoteLine__c
+            WHERE SBQQ__Quote__c IN :quoteIds
+            AND SBQQ__RenewedSubscription__c != null
+        ];
+    }
+
+    public static Map<Id, Map<String, Id>> selectExistingGroups(Set<Id> quoteIds) {
+        Map<Id, Map<String, Id>> result = new Map<Id, Map<String, Id>>();
+
+        for (SBQQ__QuoteLineGroup__c g : [
+            SELECT Id,
+                   Name,
+                   SBQQ__Quote__c,
+                   SBQQ__StartDate__c,
+                   SBQQ__EndDate__c
+            FROM SBQQ__QuoteLineGroup__c
+            WHERE SBQQ__Quote__c IN :quoteIds
+        ]) {
+            GroupDesc d = GroupDesc.fromGroup(g, null);
+            MapUtil.getOrCreate(result, g.SBQQ__Quote__c)
+                   .put(d.fingerprint(), g.Id);
+        }
+
+        return result;
+    }
+}
