@@ -1,18 +1,34 @@
-List<Contact> toInvalidate = [SELECT Id, Email FROM Contact 
-                              WHERE Email != null 
-                              AND NOT Email LIKE '%mint%'
-                              AND NOT Email LIKE '%gbg%'
-    						              AND NOT Email LIKE '%gbgplc%' 
-                              AND NOT Email LIKE '%@bigmantra.com%'];
+// Get all Leads (or a limited set if testing)
+List<Lead> allLeads = [SELECT Id, Email, Description FROM Lead WHERE Email != null];
 
-List<Contact> conToUpdate = new List<Contact>();
+// List of patterns to exclude
+List<String> excludedPatterns = new List<String>{'mint', 'gbg', 'gbgplc', '@bigmantra.com'};
 
-for (Contact c : toInvalidate) {
-    if(!c.Email.endsWith('.invalid')){
-        c.Email = c.Email + '.invalid';
+// List to hold Leads that pass the filter
+List<Lead> leadsToUpdate = new List<Lead>();
+
+for (Lead l : allLeads) {
+    Boolean exclude = false;
+
+    // Check if email contains any excluded pattern
+    for (String pattern : excludedPatterns) {
+        if (l.Email != null && l.Email.toLowerCase().contains(pattern.toLowerCase())) {
+            exclude = true;
+            break; // No need to check other patterns
+        }
     }
-    conToUpdate.add(c);
+
+    // Only process Leads that do NOT match excluded patterns
+    if (!exclude) {
+        // Example update
+        l.Description = 'This lead passed the email filter';
+        leadsToUpdate.add(l);
+    }
 }
 
-update conToUpdate;
-System.debug('Updated ' + conToUpdate.size() + ' contact emails.');
+// Save changes
+if (!leadsToUpdate.isEmpty()) {
+    update leadsToUpdate;
+}
+
+System.debug('Updated Leads: ' + leadsToUpdate);
