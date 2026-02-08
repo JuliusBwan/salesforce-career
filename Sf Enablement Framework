@@ -1,0 +1,145 @@
+2. Environments & Release Model
+Description
+
+Documentation of Salesforce environments and how changes move between them.
+
+Includes
+
+Description of Production, UAT, Development, and sandbox types
+
+Refresh strategy and frequency
+
+Environment usage guidelines
+
+High-level release process
+
+Why this exists
+
+Ensures safe delivery practices and reduces confusion during development, testing, and deployment.
+
+3. Authentication, Access & Permissions
+Description
+
+Overview of how users authenticate and are authorised within Salesforce.
+
+Includes
+
+SSO model and identity provider integration (high-level)
+
+User provisioning approach
+
+Permission set strategy
+
+Access request and approval flow
+
+Why this exists
+
+Supports onboarding, troubleshooting, and audit readiness while maintaining security clarity.
+
+4. Integration Landscape
+Description
+
+Overview of Salesforce integrations with external systems.
+
+Includes
+
+List of integrations
+
+Purpose of each integration
+
+Direction of data flow (inbound/outbound)
+
+Owning system and support contact
+
+High-level data exchanged
+
+Why this exists
+
+Creates transparency, supports troubleshooting, and prepares internal teams for ownership post-MSP.
+
+5. Development Guidelines
+Description
+
+A living set of development guidelines to promote consistency and maintainability.
+
+Includes
+
+Naming conventions
+
+Flow vs Apex guidance
+
+Error handling expectations
+
+Logging and debugging patterns
+
+Code readability and structure principles
+
+Design review expectations
+
+Why this exists
+
+Supports scalable development practices as the internal team grows.
+
+6. Source Control & GitHub Standards
+Description
+
+Defines how Salesforce code is managed in GitHub.
+
+Includes
+
+Repository structure and naming conventions
+
+README template
+
+Branching expectations
+
+Pull Request template
+
+Code review guidelines
+
+Why this exists
+
+Improves code quality, traceability, and collaboration.
+7. Delivery & Operational Templates
+Description
+
+Standard templates for recurring delivery and operational tasks.
+
+Includes
+
+Test script templates
+
+UAT sign-off checklist
+
+Release notes template
+
+Jira ticket templates
+
+Defect reporting template
+
+Why this exists
+
+Reduces friction, improves consistency, and saves time across the team.
+
+8. Security & Integration Hygiene
+Description
+
+Documentation supporting secure and compliant integration practices.
+
+Includes
+
+API key and secret storage locations
+
+Rotation and expiry expectations
+
+Ownership and approval model
+
+Interaction with InfoSec processes
+
+Known risks or dependencies
+
+Why this exists
+
+Improves security posture and audit readiness without duplicating InfoSec ownership.
+
+9. 
