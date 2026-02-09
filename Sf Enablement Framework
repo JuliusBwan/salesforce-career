@@ -1,21 +1,4 @@
-2. Environments & Release Model
-Description
 
-Documentation of Salesforce environments and how changes move between them.
-
-Includes
-
-Description of Production, UAT, Development, and sandbox types
-
-Refresh strategy and frequency
-
-Environment usage guidelines
-
-High-level release process
-
-Why this exists
-
-Ensures safe delivery practices and reduces confusion during development, testing, and deployment.
 
 3. Authentication, Access & Permissions
 Description
@@ -80,47 +63,6 @@ Why this exists
 
 Supports scalable development practices as the internal team grows.
 
-6. Source Control & GitHub Standards
-Description
-
-Defines how Salesforce code is managed in GitHub.
-
-Includes
-
-Repository structure and naming conventions
-
-README template
-
-Branching expectations
-
-Pull Request template
-
-Code review guidelines
-
-Why this exists
-
-Improves code quality, traceability, and collaboration.
-7. Delivery & Operational Templates
-Description
-
-Standard templates for recurring delivery and operational tasks.
-
-Includes
-
-Test script templates
-
-UAT sign-off checklist
-
-Release notes template
-
-Jira ticket templates
-
-Defect reporting template
-
-Why this exists
-
-Reduces friction, improves consistency, and saves time across the team.
-
 8. Security & Integration Hygiene
 Description
 
@@ -142,4 +84,213 @@ Why this exists
 
 Improves security posture and audit readiness without duplicating InfoSec ownership.
 
-9. 
+9. Great — I’ll create **clear, beginner‑friendly architecture diagrams** (in text form) and **step‑by‑step instructions** so you can start building secure integrations confidently.  
+Everything below is based on the latest Salesforce integration & security practices (2025–2026), including External Credentials + Named Credentials as the preferred method  and how bearer tokens or API keys are safely stored and injected in headers. [\[help.salesforce.com\]](https://help.salesforce.com/s/articleView?id=xcloud.named_credentials_about.htm&language=en_US&type=5), [\[apexhours.com\]](https://www.apexhours.com/named-credentials-in-salesforce/) [\[sfcrunch.com\]](https://sfcrunch.com/integrating-salesforce-external-services-with-bearer-token-authentication-via-named-credentials/)
+
+***
+
+# 🏗️ **ARCHITECTURE DIAGRAMS FOR SAFE SALESFORCE INTEGRATIONS**
+
+Below are text-based diagrams that visually explain how each integration method works.
+
+***
+
+# **1. External Credentials + Named Credentials (Recommended for 95% of Integrations)**
+
+### 🔒 Safest, modern, Salesforce-endorsed approach
+
+Salesforce introduced enhanced Named Credentials that are “extensible, customizable, and more secure,” strongly recommending them over legacy methods. [\[help.salesforce.com\]](https://help.salesforce.com/s/articleView?id=xcloud.named_credentials_about.htm&language=en_US&type=5)
+
+### 🔧 Architecture Diagram (Text Form)
+
+    ┌─────────────────────────────┐          ┌──────────────────────────────┐
+    │     External Credential      │          │      External System         │
+    │  (Stores API Key / Token)    │──secure──│ (e.g., AWS, PayPal, REST API)│
+    └──────────────▲──────────────┘          └──────────────────────────────┘
+                   │ (linked)
+    ┌──────────────┴──────────────┐
+    │       Named Credential       │
+    │ - Holds Endpoint URL         │
+    │ - Adds Auth Headers          │
+    │ - No credentials in Apex     │
+    └──────────────▲──────────────┘
+                   │ reference
+    ┌──────────────┴──────────────┐
+    │            APEX              │
+    │ HttpRequest req =            │
+    │   new HttpRequest();         │
+    │ req.setEndpoint('callout:X') │
+    └──────────────────────────────┘
+
+### 🧑‍🏫 Beginner Explanation
+
+*   **External Credential** = locked vault storing secrets
+*   **Named Credential** = how Salesforce calls the external system
+*   **Apex code never sees or touches the secret**
+*   **Salesforce injects keys/tokens for you**
+
+This is the most secure way because tokens never appear in code or logs, aligning with best practices and preventing secret leakage. [\[apexhours.com\]](https://www.apexhours.com/named-credentials-in-salesforce/)
+
+***
+
+# **2. OAuth 2.0 with PKCE (For User-Based Integrations)**
+
+### 🔐 Salesforce recommends PKCE for secure token exchange and replacing unsafe Device Flow by 2025–26 [\[tekunda.com\]](https://tekunda.com/blog/Salesforce-Authentication-Your-Complete-Migration-Guide).
+
+### 🔧 Architecture Diagram
+
+    User → Salesforce → Authorization Server → Token → Named Credential → External API
+
+### When to Use
+
+*   Integrations requiring users to log in (Google, Microsoft, custom identity providers)
+
+### Why Secure
+
+*   PKCE prevents “authorization code interception” attacks
+*   No credentials or secrets stored in Apex
+
+***
+
+# **3. OAuth 2.0 JWT Bearer Flow (Server-to-Server)**
+
+### 🔐 Best for backend-to-backend automated flows.
+
+### 🔧 Architecture Diagram
+
+    Private Key → Salesforce → JWT → Auth Server → Access Token → Named Credential → API Call
+
+### When to Use
+
+*   Microservices
+*   Back-end systems (Azure Functions, AWS Lambda, Mulesoft)
+
+***
+
+# **4. API Key integrations (When API-only services are used)**
+
+### Salesforce supports storing API keys using External Credentials and adding them as headers using Named Credentials [\[sfcrunch.com\]](https://sfcrunch.com/integrating-salesforce-external-services-with-bearer-token-authentication-via-named-credentials/).
+
+### 🔧 Architecture Diagram
+
+    External Credential (API Key)
+            │
+       Named Credential (adds header: Authorization: Bearer …)
+            │
+           Apex → External API
+
+### When to Use
+
+*   Third-party APIs that *only* support keys (no OAuth)
+
+### Why Safe
+
+*   Key is encrypted
+*   Never appears in Apex
+*   Delivered via secure HTTP header (not URL) after Salesforce blocked secret substitution into URLs for safety reasons [\[help.salesforce.com\]](https://help.salesforce.com/s/articleView?id=004695556&language=en_US&type=1)
+
+***
+
+# **5. Fallback: Custom Metadata (API Keys)**
+
+### Only when URL-based API keys are forced by the provider
+
+Salesforce explains that embedding secrets in URLs is blocked in Named Credentials for security. [\[help.salesforce.com\]](https://help.salesforce.com/s/articleView?id=004695556&language=en_US&type=1)
+
+### 🔧 Architecture Diagram
+
+    Custom Metadata (protected) → Apex retrieves key → Callout
+
+### Not recommended except for very low‑risk APIs.
+
+***
+
+# 📝 **STEP-BY-STEP IMPLEMENTATION GUIDE (Beginner-Friendly)**
+
+Let’s build a **real integration example**: calling an external service using a bearer token or API key via External + Named Credentials.
+
+***
+
+# **STEP 1 — Create an External Credential**
+
+External Credentials store authentication details securely and support tokens, passwords, or keys. [\[blogs.perficient.com\]](https://blogs.perficient.com/2025/01/06/understanding-external-credentials-and-named-credentials-in-salesforce/)
+
+### Steps
+
+1.  Go to **Setup → Named Credentials → External Credentials → New**
+2.  Select **Authentication Protocol: Custom**
+3.  Add a **Principal**
+    *   Name: `MyServicePrincipal`
+    *   Store your API key/token here
+4.  Add **Headers** (if needed)  
+    Example header (supported per Salesforce docs):
+    *   Header Name: `Authorization`
+    *   Value: `Bearer {!$Credential.MyService.api_key}` [\[sfcrunch.com\]](https://sfcrunch.com/integrating-salesforce-external-services-with-bearer-token-authentication-via-named-credentials/)
+
+Now Salesforce will inject this header securely.
+
+***
+
+# **STEP 2 — Create the Named Credential**
+
+Named Credentials bind the endpoint to the authentication method and hide secrets from Apex.  
+This approach is “more secure and recommended over legacy models”. [\[help.salesforce.com\]](https://help.salesforce.com/s/articleView?id=xcloud.named_credentials_about.htm&language=en_US&type=5), [\[greytrix.com\]](https://www.greytrix.com/blogs/salesforce/2025/07/02/secure-api-integrations-in-salesforce-using-named-credentials/)
+
+### Steps
+
+1.  **Setup → Named Credentials → New**
+2.  Name: `MyServiceNC`
+3.  URL: e.g., `https://api.example.com`
+4.  Authentication: **Use External Credential**
+5.  Choose the External Credential you created
+
+Done—Salesforce will now apply headers automatically.
+
+***
+
+# **STEP 3 — Call the Endpoint in Apex (Beginner Friendly)**
+
+```apex
+HttpRequest req = new HttpRequest();
+req.setEndpoint('callout:MyServiceNC/my/path');
+req.setMethod('GET');
+
+Http http = new Http();
+HttpResponse res = http.send(req);
+
+System.debug(res.getBody());
+```
+
+No tokens, no API keys, no passwords in your code — fully secure.
+
+***
+
+# **STEP 4 — Assign Access to Users**
+
+Salesforce requires users to have access to External Credential “principals” via Permission Set so they can make authenticated callouts. [\[sfcrunch.com\]](https://sfcrunch.com/integrating-salesforce-external-services-with-bearer-token-authentication-via-named-credentials/)
+
+***
+
+# 🎯 **Final Summary: Your Safe Integration Strategy**
+
+| Method                                | Best For                 | Security | Notes                                                                                                                                                                          |
+| ------------------------------------- | ------------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **External + Named Credentials**      | Almost all integrations  | ⭐⭐⭐⭐⭐    | Recommended by Salesforce (2025–26)                                                                                                                                            |
+| **OAuth 2.0 PKCE**                    | User-facing integrations | ⭐⭐⭐⭐⭐    | Required as Device Flow is deprecated by 2025 [\[tekunda.com\]](https://tekunda.com/blog/Salesforce-Authentication-Your-Complete-Migration-Guide) |
+| **OAuth 2.0 JWT**                     | Server-to-server         | ⭐⭐⭐⭐⭐    | Most secure backend method                                                                                                                                                     |
+| **API Keys via External Credentials** | Key-based services       | ⭐⭐⭐⭐     | Keys stay encrypted & injected in headers                                                                                                                                      |
+| **Custom Metadata**                   | Only legacy needs        | ⭐⭐       | Avoid unless necessary                                                                                                                                                         |
+| **Hardcoding Secrets**                | Never                    | ⭐        | Forbidden; unsafe                                                                                                                                                              |
+
+***
+
+# 🚀 Next Step
+
+Would you like me to create:
+
+1.  **A step‑by‑step guide for a REAL integration** (e.g., Google Maps, Stripe, AWS, Azure, HubSpot, PayPal)?
+2.  **A complete Apex + Named Credential template package** you can reuse in projects?
+3.  **A visual architecture diagram (PNG)** for documentation?
+
+Just tell me which one you'd like!
+
